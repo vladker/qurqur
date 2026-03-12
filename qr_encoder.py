@@ -134,17 +134,18 @@ def main():
     if is_binary or original_size > 10000:
         file_bytes = file_content.encode('utf-8')
         compressed_data, used_method = compression.compress_data(file_bytes, compress_method)
-        compressed_content = compressed_data.decode('latin-1')  # Сохраняем байты как строку
-        
+        # Кодируем сжатые байты в base64 для безопасной передачи
+        compressed_content = base64.b64encode(compressed_data).decode('ascii')
+
         compressed_size = len(compressed_data)
-        ratio = compression.get_compression_ratio(original_size, compressed_size)
-        
+        ratio = compression.get_compression_ratio(original_size, len(compressed_content.encode('utf-8')))
+
         print(f"\nАрхивация:")
         print(f"  Метод: {compression.get_method_name(used_method)}")
         print(f"  Было: {original_size:,} байт")
-        print(f"  Стало: {compressed_size:,} байт")
+        print(f"  Стало: {len(compressed_content.encode('utf-8')):,} байт (base64)")
         print(f"  Сжатие: {ratio}")
-        
+
         file_content = compressed_content
         compress_method = used_method  # Запоминаем использованный метод
     else:

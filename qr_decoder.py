@@ -197,11 +197,13 @@ def main():
     if compress_method != 'none':
         try:
             compression = CompressionManager()
-            # Декодируем latin-1 строку обратно в байты (как было заархивировано)
-            file_bytes = file_content.encode('latin-1')
-            decompressed_data = compression.decompress_data(file_bytes, compress_method)
+            # Сначала декодируем base64 (которым закодированы сжатые данные)
+            compressed_bytes = base64.b64decode(file_content)
 
-            ratio = compression.get_compression_ratio(len(decompressed_data), len(file_bytes))
+            # Затем разархивируем
+            decompressed_data = compression.decompress_data(compressed_bytes, compress_method)
+
+            ratio = compression.get_compression_ratio(len(decompressed_data), len(compressed_bytes))
             print(f"\nРазархивация:")
             print(f"  Метод: {compression.get_method_name(compress_method)}")
             print(f"  Сжатие: {ratio}")
