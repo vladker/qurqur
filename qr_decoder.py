@@ -23,12 +23,19 @@ def decode_qr_images(qr_directory: str) -> list:
         Список расшифрованных данных из QR-кодов
     """
     try:
+        import cv2
         from pyzbar.pyzbar import decode
         from PIL import Image
+        USE_CV = True
     except ImportError:
-        print("Ошибка: не установлены библиотеки pyzbar или Pillow")
-        print("Установите: pip install pyzbar Pillow")
-        return []
+        try:
+            from pyzbar.pyzbar import decode
+            from PIL import Image
+            USE_CV = False
+        except ImportError:
+            print("Ошибка: не установлены библиотеки pyzbar, Pillow или opencv-python")
+            print("Установите: pip install pyzbar Pillow opencv-python")
+            return []
     
     decoded_data = []
     
@@ -52,8 +59,17 @@ def decode_qr_images(qr_directory: str) -> list:
     for i, filename in enumerate(sorted(files), 1):
         file_path = os.path.join(qr_directory, filename)
         try:
-            img = Image.open(file_path)
-            qr_codes = decode(img)
+            if USE_CV:
+                # Используем OpenCV для чтения
+                img = cv2.imread(file_path)
+                if img is None:
+                    print(f"[{i}/{len(files)}] {filename}: не удалось прочитать")
+                    continue
+                qr_codes = decode(img)
+            else:
+                # Используем PIL
+                img = Image.open(file_path)
+                qr_codes = decode(img)
             
             if qr_codes:
                 for qr in qr_codes:
@@ -112,30 +128,28 @@ def main():
     blocks = []
     mode_flag = 'T'  # По умолчанию текстовый
     compress_method = 'none'
-    original_file_path = None
+    total_blocks = 0
+    original_file_name = "restored_file"  # По умолчанию
 
     for item in decoded_data:
         block_data = collector._extract_block_data(item['data'])
         if block_data:
             blocks.append(block_data)
             
-            # Извлекаем режим и метод сжатия из первого блока
-            raw_data = item['data']
-            if 'MODE:' in raw_data:
-                mode_start = raw_data.find('MODE:') + 5
-                mode_flag = raw_data[mode_start:mode_start+1]
+            # Извлекаем режим и метод сжатия из метаданных блока
+            if 'mode' in block_data:
+                mode_flag = block_data['mode']
+            if 'compress' in block_data:
+                compress_method = block_data['compress']
+            if 'total_blocks' in block_data:
+                total_blocks = block_data['total_blocks']
             
-            if 'CMP:' in raw_data:
-                cmp_start = raw_data.find('CMP:') + 4
-                cmp_end = raw_data.find(' ', cmp_start)
-                if cmp_end == -1:
-                    cmp_end = len(raw_data)
-                compress_method = raw_data[cmp_start:cmp_end]
+            # Извлекаем имя файла из текста над QR (если есть)
+            if original_file_name == "restored_file" and 'file' in item:
+                # Пытаемся извлечь из имени файла QR
+                pass
             
-            if original_file_path is None:
-                original_file_path = block_data['file_path']
-            
-            print(f"  Блок {block_data['block_num']}: ID={block_data['block_id']}, файл={block_data['file_path']}")
+            print(f"  Блок {block_data['block_num']}: ID={block_data.get('block_id', 'N/A')}")
         else:
             print(f"  НЕ извлечён: {item['file']}")
 
@@ -150,65 +164,75 @@ def main():
     missing = collector._check_missing_blocks(blocks)
     if missing:
         print(f"\n⚠ Внимание: отсутствуют блоки: {missing}")
+        print(f"  Найдено: {len(blocks)}, Ожидается: {total_blocks}")
+        print("  Файл может быть восстановлен не полностью!")
 
-    # Объединение блоков
-    combined_content = collector.text_processor.combine_blocks_by_order(blocks)
-    
-    # Извлекаем контент (удаляем метаданные из начала если есть)
-    # Формат: "MODE:X CMP:yyy контент"
-    content_parts = combined_content.split(' ', 2)
-    if len(content_parts) >= 3 and content_parts[0].startswith('MODE:'):
-        file_content = content_parts[2]
-    else:
-        file_content = combined_content
+    # Проверка первого блока на наличие MODE и CMP
+    if blocks:
+        first_block = blocks[0]
+        if 'mode' in first_block:
+            mode_flag = first_block['mode']
+        if 'compress' in first_block:
+            compress_method = first_block['compress']
+        if 'total_blocks' in first_block:
+            total_blocks = first_block['total_blocks']
+
+    # Объединение блоков - qr_content уже очищен от тегов
+    combined_content = ''.join([b['qr_content'] for b in blocks])
+    file_content = combined_content
+
+    print(f"\nОбъединённый размер: {len(file_content):,} символов")
 
     # Определение типа файла
     is_binary = mode_flag == 'B'
     
     print(f"\nПараметры:")
-    print(f"  Тип: {'Бинарный' if is_binary else 'Текстовый'}")
+    print(f"  Тип файла: {'Бинарный' if is_binary else 'Текстовый'}")
     print(f"  Сжатие: {compress_method}")
-    print(f"  Исходный файл: {original_file_path}")
-    print(f"  Размер данных: {len(file_content)} символов")
+    print(f"  Всего блоков: {total_blocks}")
+    print(f"  Размер данных: {len(file_content):,} символов")
 
     # Разархивация
+    decompression_failed = False
     if compress_method != 'none':
         try:
             compression = CompressionManager()
+            # Декодируем latin-1 строку обратно в байты (как было заархивировано)
             file_bytes = file_content.encode('latin-1')
             decompressed_data = compression.decompress_data(file_bytes, compress_method)
-            
+
             ratio = compression.get_compression_ratio(len(decompressed_data), len(file_bytes))
             print(f"\nРазархивация:")
             print(f"  Метод: {compression.get_method_name(compress_method)}")
             print(f"  Сжатие: {ratio}")
-            
-            file_content = decompressed_data.decode('latin-1')
-            print(f"  Размер после разархивации: {len(file_content)} символов")
+
+            # После разархивации получаем UTF-8 строку (Base64 для бинарных файлов)
+            file_content = decompressed_data.decode('utf-8')
+            print(f"  Размер после разархивации: {len(file_content):,} символов")
         except Exception as e:
             print(f"\n⚠ Ошибка при разархивации: {e}")
-            print("Продолжаем без разархивации...")
+            decompression_failed = True
+            print("  Продолжаем без разархивации (данные могут быть повреждены)...")
 
     # Декодирование из Base64 (для бинарных файлов)
     if is_binary:
         try:
             decoded_bytes = base64.b64decode(file_content)
-            print(f"\nДекодирование из Base64: {len(decoded_bytes)} байт")
+            print(f"\nДекодирование из Base64: {len(decoded_bytes):,} байт")
             file_data = decoded_bytes
         except Exception as e:
             print(f"\n⚠ Ошибка при декодировании Base64: {e}")
-            file_data = file_content.encode('utf-8')
+            if decompression_failed:
+                print("  Возможно, данные были заархивированы, но не удалось разархивировать")
+            print("  Сохраняем как есть (файл может быть повреждён)...")
+            file_data = file_content.encode('utf-8', errors='replace')
     else:
         file_data = file_content.encode('utf-8')
 
     # Определение имени файла для сохранения
-    original_file_name = None
-    if original_file_path:
-        # Декодируем путь обратно
-        original_path = original_file_path.replace('_:', ':').replace('/', '\\')
-        if original_path == "STDOT":
-            original_path = "STDOUT"
-        original_file_name = os.path.basename(original_path)
+    # Используем имя по умолчанию или из параметров
+    default_ext = '.bin' if is_binary else '.txt'
+    default_output = os.path.join(qr_directory, f"{original_file_name}{default_ext}")
 
     # Выбор способа сохранения
     print("\n2. Выберите способ сохранения:")
@@ -218,15 +242,8 @@ def main():
     save_choice = input("Ваш выбор (1/2, по умолчанию 1): ").strip()
 
     if save_choice != '2':
-        # Предложить путь для сохранения с оригинальным именем
-        if original_file_name:
-            default_output = os.path.join(qr_directory, original_file_name)
-        else:
-            ext = '.bin' if is_binary else '.txt'
-            default_output = os.path.join(qr_directory, f"restored_file{ext}")
-        
         output_file = input(f"3. Путь для сохранения (по умолчанию {default_output}): ").strip()
-        
+
         if not output_file:
             output_file = default_output
         

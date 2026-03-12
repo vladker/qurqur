@@ -10,19 +10,11 @@ class QRCollector:
 
     def __init__(self):
         self.text_processor = TextProcessor()
-        self.start_tag = "#QRSTART:#"
-        self.end_tag = "#QREND#"
-        # Новый формат с MODE и CMP
+        self.start_tag = "#QRS#"
+        self.end_tag = "#QRE#"
+        # Новый компактный формат: BN:X TOT:Y M:Z C:W
         self.block_pattern = re.compile(
-            r'FILEPATH:(?P<path>[^ ]+) BLOCKID:(?P<id>[^ ]+) BLOCKNUM:(?P<num>\d+) TIME:(?P<time>[^ ]+) CHECKSUM:(?P<checksum>[^ ]+) MODE:(?P<mode>[^ ]+) CMP:(?P<cmp>[^ ]+)'
-        )
-        # Формат с BLOCKNUM но без MODE/CMP
-        self.block_pattern_num = re.compile(
-            r'FILEPATH:(?P<path>[^ ]+) BLOCKID:(?P<id>[^ ]+) BLOCKNUM:(?P<num>\d+) TIME:(?P<time>[^ ]+) CHECKSUM:(?P<checksum>[^ ]+)'
-        )
-        # Старый формат без BLOCKNUM
-        self.block_pattern_old = re.compile(
-            r'FILEPATH:(?P<path>[^ ]+) BLOCKID:(?P<id>[^ ]+) TIME:(?P<time>[^ ]+) CHECKSUM:(?P<checksum>[^ ]+)'
+            r'BN:(?P<num>\d+) TOT:(?P<tot>\d+) M:(?P<mode>[TB]) C:(?P<cmp>\w+)'
         )
 
     def collect_qr_files(self, qr_directory: str, output_file: str = None) -> Dict[str, any]:
@@ -93,52 +85,17 @@ class QRCollector:
         end_idx = content.rfind(self.end_tag)
 
         if start_idx > -1 and end_idx > start_idx:
-            # Метаданные могут быть ДО #QRSTART:#
+            # Метаданные перед #QRSTART:#
             metadata_text = content[:start_idx].strip()
 
-            # Пробуем новый формат с MODE и CMP
+            # Пробуем новый компактный формат: BN:X TOT:Y M:Z C:W
             match = self.block_pattern.search(metadata_text)
             if match:
                 metadata = {
-                    'file_path': match.group('path'),
-                    'block_id': match.group('id'),
                     'block_num': int(match.group('num')),
-                    'timestamp': match.group('time'),
-                    'checksum': match.group('checksum'),
+                    'total_blocks': int(match.group('tot')),
                     'mode': match.group('mode'),
                     'compress': match.group('cmp'),
-                    'raw_qr_text': content,
-                    'qr_content': content[start_idx + len(self.start_tag):end_idx]
-                }
-                return metadata
-            
-            # Пробуем формат с BLOCKNUM но без MODE/CMP
-            match = self.block_pattern_num.search(metadata_text)
-            if match:
-                metadata = {
-                    'file_path': match.group('path'),
-                    'block_id': match.group('id'),
-                    'block_num': int(match.group('num')),
-                    'timestamp': match.group('time'),
-                    'checksum': match.group('checksum'),
-                    'mode': 'T',  # По умолчанию текстовый
-                    'compress': 'none',
-                    'raw_qr_text': content,
-                    'qr_content': content[start_idx + len(self.start_tag):end_idx]
-                }
-                return metadata
-            
-            # Пробуем старый формат без BLOCKNUM
-            match = self.block_pattern_old.search(metadata_text)
-            if match:
-                metadata = {
-                    'file_path': match.group('path'),
-                    'block_id': match.group('id'),
-                    'block_num': 1,  # По умолчанию для старого формата
-                    'timestamp': match.group('time'),
-                    'checksum': match.group('checksum'),
-                    'mode': 'T',
-                    'compress': 'none',
                     'raw_qr_text': content,
                     'qr_content': content[start_idx + len(self.start_tag):end_idx]
                 }

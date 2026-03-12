@@ -11,10 +11,10 @@ class TextProcessor:
         # Максимальное количество символов для QR-кода
         # Версия 40 с коррекцией M вмещает ~2331 байт
         # Но Base64 данные идут одной строкой, поэтому берём меньше
-        # С учётом метаданных (~150 символов) и запаса устанавливаем 300
-        self.max_qr_chars = 300  # Безопасный лимит для Base64
-        self.start_tag = "#QRSTART:#"
-        self.end_tag = "#QREND#"
+        # С учётом метаданных (~150 символов) и запаса устанавливаем 200
+        self.max_qr_chars = 200  # Безопасный лимит для Base64
+        self.start_tag = "#QRS#"
+        self.end_tag = "#QRE#"
 
     def process_text(self, text: str) -> List[Tuple[str, str, int]]:
         """
@@ -36,20 +36,25 @@ class TextProcessor:
         return processed_blocks
 
     def _split_into_blocks(self, text: str) -> List[Tuple[str, str, int]]:
-        """Разбивает текст на блоки с учётом разделителей"""
+        """Разбивает текст на блоки с сохранением переводов строк"""
         blocks = []
         current_block = ""
         current_id = str(uuid.uuid4())[:8]
         block_num = 1
 
-        # Разбиваем по строкам сначала
+        # Разбиваем по строкам, сохраняя информацию о переводах строк
         lines = text.split('\n')
+        total_lines = len(lines)
         
-        for line in lines:
+        for i, line in enumerate(lines):
             line = line.rstrip('\r')
             
+            # Добавляем '\n' после каждой строки, кроме последней
+            if i < total_lines - 1:
+                line += '\n'
+            
             # Проверяем, поместится ли строка в текущий блок
-            test_block = current_block + ('\n' if current_block else '') + line
+            test_block = current_block + line
             
             if len(test_block) > self.max_qr_chars:
                 # Если текущий блок не пустой, сохраняем его
@@ -57,16 +62,17 @@ class TextProcessor:
                     blocks.append((current_id, current_block, block_num))
                     current_id = str(uuid.uuid4())[:8]
                     block_num += 1
-                    current_block = line
-                else:
-                    # Строка слишком длинная, разбиваем её на части
-                    while len(line) > self.max_qr_chars:
-                        chunk = line[:self.max_qr_chars]
-                        blocks.append((current_id, chunk, block_num))
-                        current_id = str(uuid.uuid4())[:8]
-                        block_num += 1
-                        line = line[self.max_qr_chars:]
-                    current_block = line
+                
+                # Разбиваем длинную строку на части
+                remaining = line
+                while len(remaining) > self.max_qr_chars:
+                    chunk = remaining[:self.max_qr_chars]
+                    blocks.append((current_id, chunk, block_num))
+                    current_id = str(uuid.uuid4())[:8]
+                    block_num += 1
+                    remaining = remaining[self.max_qr_chars:]
+                
+                current_block = remaining
             else:
                 current_block = test_block
 
@@ -115,11 +121,10 @@ class TextProcessor:
 
         return metadata
 
-    def generate_block_metadata(self, file_path: str, block_id: str, timestamp: str, block_num: int = 1) -> str:
-        """Генерирует минимальную строку метаданных"""
-        encoded_path = self._encode_path(file_path)
-        checksum = self._calculate_checksum(encoded_path, block_id, timestamp, str(block_num))
-        return f"FILEPATH:{encoded_path} BLOCKID:{block_id} BLOCKNUM:{block_num} TIME:{timestamp} CHECKSUM:{checksum}"
+    def generate_block_metadata(self, block_num: int, total_blocks: int, mode: str, compress: str) -> str:
+        """Генерирует минимальную строку метаданных для QR-кода"""
+        # Формат: BN:X TOT:Y M:Z C:W (очень компактно)
+        return f"BN:{block_num} TOT:{total_blocks} M:{mode} C:{compress}"
 
     def _encode_path(self, file_path: str) -> str:
         """Кодирует путь к файлу для экономии места"""
@@ -147,19 +152,20 @@ class TextProcessor:
         for i, block in enumerate(sorted_blocks):
             # Поддерживаем оба ключа: 'content' и 'qr_content'
             block_text = block.get('content') or block.get('qr_content') or ''
-            
+
             if block_text:
                 # Извлекаем контент между тегами, ТОЛЬКО если блок НАЧИНАЕТСЯ с #QRSTART:#
                 start_tag = '#QRSTART:#'
                 end_tag = '#QREND#'
-                
+
                 if block_text.startswith(start_tag):
                     # Теги ещё не удалены - извлекаем контент
                     end_idx = block_text.rfind(end_tag)
                     if end_idx > len(start_tag):
                         block_text = block_text[len(start_tag):end_idx]
                 # else: теги уже удалены qr_collector - используем блок как есть
-                
+
                 full_text.append(block_text)
 
+        # Соединяем блоки без разделителя - каждый блок уже содержит свои переводы строк
         return ''.join(full_text)

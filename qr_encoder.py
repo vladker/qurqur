@@ -39,16 +39,55 @@ def main():
     # Получаем информацию о файле
     file_size = os.path.getsize(input_file)
     file_name = os.path.basename(input_file)
+    file_ext = os.path.splitext(file_name)[1].lower()
+    
     print(f"\nФайл загружен: {input_file}")
     print(f"Размер: {file_size:,} байт")
+    print(f"Тип: {file_ext or 'без расширения'}")
 
-    # Выбор режима кодирования
-    print("\n2. Выберите режим кодирования:")
-    print("  [1] Текстовый (для текстовых файлов)")
-    print("  [2] Бинарный (для любых файлов, Base64)")
+    # Автоматическое определение режима кодирования
+    text_extensions = {'.txt', '.md', '.py', '.js', '.ts', '.html', '.css', '.json', '.xml', '.yaml', '.yml', '.csv', '.log', '.ini', '.cfg', '.conf', '.sh', '.bat', '.cmd', '.ps1', '.sql', '.rst', '.rtf'}
     
-    encode_mode = input("Ваш выбор (1/2, по умолчанию 2): ").strip()
-    is_binary = encode_mode != '1'
+    # Пытаемся определить, текстовый ли файл
+    is_text = file_ext in text_extensions
+    
+    if not is_text and file_size > 0:
+        # Проверяем первые байты файла
+        try:
+            with open(input_file, 'rb') as f:
+                header = f.read(1024)
+            # Проверяем на наличие бинарных данных
+            if b'\x00' in header:
+                is_text = False
+            else:
+                # Пытаемся декодировать как UTF-8
+                try:
+                    header.decode('utf-8')
+                    is_text = True
+                except:
+                    is_text = False
+        except:
+            is_text = False
+    
+    print(f"\n2. Режим кодирования:")
+    if is_text:
+        print("  [1] Текстовый (UTF-8)")
+        print("  [2] Бинарный (Base64, универсальный)")
+        default_mode = '1'
+    else:
+        print("  [1] Бинарный (Base64, рекомендуется)")
+        print("  [2] Текстовый (только если файл текстовый)")
+        default_mode = '1'
+    
+    encode_mode = input(f"Ваш выбор (1/2, по умолчанию {default_mode}): ").strip()
+    if not encode_mode:
+        encode_mode = default_mode
+    
+    # Определяем режим: is_binary=True для бинарного режима
+    if is_text:
+        is_binary = encode_mode == '2'  # Для текстовых файлов бинарный = вариант 2
+    else:
+        is_binary = encode_mode == '1'  # Для бинарных файлов бинарный = вариант 1
     
     # Чтение файла
     try:
@@ -81,7 +120,7 @@ def main():
     print("  [5] LZMA")
     print("  [6] Без сжатия")
     
-    compress_choice = input("Ваш выбор (1-6, по умолчанию 1): ").strip()
+    compress_choice = input(f"Ваш выбор (1-6, по умолчанию 1): ").strip()
     
     compress_map = {
         '1': 'auto', '2': 'zip', '3': 'gzip', '4': 'bz2', '5': 'lzma', '6': 'none'
@@ -139,34 +178,41 @@ def main():
 
     # Разбиваем на блоки
     blocks = processor.process_text(file_content)
-    
-    # Генерируем метаданные
+    total_blocks = len(blocks)
+
+    # Генерируем метаданные файла (для отображения над QR)
     timestamp = str(int(os.path.getmtime(input_file)))
-    
+    mode_flag = 'B' if is_binary else 'T'
+
     # Создаем папку для вывода
     output_dir = "qr_output"
     os.makedirs(output_dir, exist_ok=True)
 
     print(f"\nГенерация QR-кодов...")
-    print(f"Всего блоков: {len(blocks)}")
+    print(f"Всего блоков: {total_blocks}")
 
     for i, (block_id, block_content, block_num) in enumerate(blocks):
-        # Формируем полные данные с метаданными
-        metadata = processor.generate_block_metadata(
-            input_file, block_id, timestamp, block_num
+        # Формируем минимальные метаданные для QR
+        qr_metadata = processor.generate_block_metadata(
+            block_num, total_blocks, mode_flag, compress_method
         )
-        # Добавляем информацию о режиме и сжатии
-        mode_flag = 'B' if is_binary else 'T'
-        full_data = f"{metadata} MODE:{mode_flag} CMP:{compress_method} {block_content}"
-        
+        # Данные внутри QR: только метаданные блока + контент
+        full_data = f"{qr_metadata} {block_content}"
+
+        # Генерируем QR-код
         qr_image = generator.generate_qr(
-            data=full_data, 
+            data=full_data,
             version=version,
             error_correction=error_correction,
             style=style
         )
+        
+        # Добавляем текст над QR-кодом с полной информацией
+        header_text = f"{file_name} | Блок {block_num}/{total_blocks} | {timestamp}"
+        qr_with_text = generator.add_metadata_text(qr_image, header_text, position='top')
+        
         output_path = f"{output_dir}/qr_{block_num}.png"
-        generator.save_qr(qr_image, output_path, "PNG")
+        generator.save_qr(qr_with_text, output_path, "PNG")
         print(f"  Создан: {output_path} (блок {block_num})")
 
     print(f"\n✓ Готово! Всего создано QR-кодов: {len(blocks)}")

@@ -138,40 +138,93 @@ class QRGenerator:
 
     def add_metadata_text(self, qr_image: Image.Image, metadata_text: str, position: str = 'bottom') -> Image.Image:
         """
-        Добавляет текстовую метаданных над/под QR-кодом
+        Добавляет текст над/под QR-кодом с ограничением ширины
 
         Args:
             qr_image: QR-код
             metadata_text: Текст метаданных
             position: Положение (top, bottom)
         """
+        from PIL import ImageDraw, ImageFont
+        
         text_color = 'black'
         bg_color = 'white'
         font_name = 'Arial'
 
         img_width, img_height = qr_image.size
-
-        if position == 'bottom':
-            text_height = self._calculate_text_height(metadata_text, font_name, img_width)
-            new_width = max(img_width, 200)
-
-            new_image = Image.new('RGB', (new_width, img_height + text_height), color=bg_color)
-            new_image.paste(qr_image, (0, 0))
-            qr_image = new_image
-
+        
+        # Разбиваем текст на строки чтобы не превысить ширину QR
+        max_text_width = img_width * 0.95  # 95% от ширины QR
+        font_size = max(8, min(14, img_width // 20))  # Адаптивный размер
+        
+        try:
+            font = ImageFont.truetype(font_name, font_size)
+        except:
+            font = ImageFont.load_default()
+        
+        # Разбиваем на строки
+        words = metadata_text.split(' | ')
+        lines = []
+        current_line = ""
+        
+        for word in words:
+            test_line = current_line + (' | ' if current_line else '') + word
+            bbox = ImageDraw.Draw(Image.new('RGB', (1, 1))).textbbox((0, 0), test_line, font=font)
+            text_width = bbox[2] - bbox[0]
+            
+            if text_width <= max_text_width:
+                current_line = test_line
+            else:
+                if current_line:
+                    lines.append(current_line)
+                current_line = word
+        
+        if current_line:
+            lines.append(current_line)
+        
+        # Рассчитываем высоту текста
+        text_height = len(lines) * (font_size + 4) + 10
+        
+        # Конвертируем qr_image в PIL.Image если это PilImage от qrcode
+        if hasattr(qr_image, 'im'):
+            # Это PilImage от qrcode, конвертируем в PIL.Image
+            qr_image = qr_image.convert('RGB')
+        
+        # Создаем новое изображение
+        if position == 'top':
+            new_height = img_height + text_height
+            new_image = Image.new('RGB', (img_width, new_height), color=bg_color)
+            new_image.paste(qr_image, (0, text_height))
+            
             draw = ImageDraw.Draw(new_image)
-            draw.text(
-                (0, img_height),
-                metadata_text,
-                fill=text_color,
-                font=self._get_font(font_name, text_height - 4)
-            )
-
-        return qr_image
+            y_offset = 5
+            for line in lines:
+                # Центрируем текст
+                bbox = draw.textbbox((0, 0), line, font=font)
+                text_width = bbox[2] - bbox[0]
+                x = (img_width - text_width) // 2
+                draw.text((x, y_offset), line, fill=text_color, font=font)
+                y_offset += font_size + 4
+        else:
+            new_height = img_height + text_height
+            new_image = Image.new('RGB', (img_width, new_height), color=bg_color)
+            new_image.paste(qr_image, (0, 0))
+            
+            draw = ImageDraw.Draw(new_image)
+            y_offset = img_height + 5
+            for line in lines:
+                bbox = draw.textbbox((0, 0), line, font=font)
+                text_width = bbox[2] - bbox[0]
+                x = (img_width - text_width) // 2
+                draw.text((x, y_offset), line, fill=text_color, font=font)
+                y_offset += font_size + 4
+        
+        return new_image
 
     def _get_font(self, font_name: str, size: int) -> Any:
+        """Возвращает объект шрифта"""
         try:
-            from PIL import ImageFont, ImageDraw
+            from PIL import ImageFont
             if font_name:
                 try:
                     return ImageFont.truetype(font_name, size)
@@ -180,51 +233,17 @@ class QRGenerator:
             return ImageFont.load_default()
         except:
             return None
-        """Возвращает объект шрифта"""
-        try:
-            from PIL import ImageFont
-            return ImageFont.truetype(font_name, size)
-        except:
-            return ImageFont.load_default()
 
     def _calculate_text_height(self, text: str, font_name: str, max_width: int) -> int:
         """Рассчитывает необходимую высоту для текста"""
         try:
             from PIL import ImageFont, ImageDraw
-            font = None
-            if font_name:
-                try:
-                    font = ImageFont.truetype(font_name, 12)
-                except:
-                    font = ImageFont.load_default()
-            else:
-                font = ImageFont.load_default()
-
+            font = ImageFont.truetype(font_name, 12) if font_name else ImageFont.load_default()
             temp_img = Image.new('RGB', (1, 1), 'white')
             temp_draw = ImageDraw.Draw(temp_img)
             left, top, right, bottom = temp_draw.textbbox((0, 0), text, font=font)
             height = int(bottom - top)
-            return 0 + int(height) + 6
-        except:
-            return 20
-        """
-        Рассчитывает необходимую высоту для текста
-
-        Args:
-            text: Текст для отображения
-            font_name: Имя шрифта
-            max_width: Максимальная ширина изображения
-
-        Returns:
-            Необходимая высота текстового блока
-        """
-        try:
-            from PIL import ImageFont
-            font = ImageFont.truetype(font_name, 12) if font_name else ImageFont.load_default()
-            temp_img = Image.new('RGB', (1, 1), 'white')
-            temp_draw = ImageDraw.Draw(temp_img)
-            _, height = temp_draw.textsize(text, font=font)
-            return height + 6
+            return int(height) + 6
         except:
             return 20
 
