@@ -15,7 +15,7 @@ class QRGenerator:
     def generate_qr(
         self,
         data: str,
-        version: int = 1,
+        version: int = None,
         error_correction: str = 'M',
         style: str = 'square',
         use_micro_markers: bool = True
@@ -25,7 +25,7 @@ class QRGenerator:
 
         Args:
             data: Текстовые данные для QR-кода
-            version: Версия QR-кода (1-40)
+            version: Версия QR-кода (1-40, None для автоподбора)
             error_correction: Степень коррекции ошибок (L, M, Q, H)
             style: Стиль (square, circle)
             use_micro_markers: Использовать микро-метки вместо начала/конца
@@ -33,7 +33,25 @@ class QRGenerator:
         Returns:
             Объект PIL.Image с QR-кодом
         """
-        if version < 1 or version > 40:
+        error_correction_map = {
+            'L': ERROR_CORRECT_L,
+            'M': ERROR_CORRECT_M,
+            'Q': ERROR_CORRECT_Q,
+            'H': ERROR_CORRECT_H
+        }
+        
+        if version is None:
+            # Автоподбор версии
+            qr = qrcode.QRCode(
+                version=None,
+                error_correction=error_correction_map.get(error_correction, ERROR_CORRECT_M),
+                box_size=10,
+                border=4
+            )
+            qr.add_data(data)
+            qr.make(fit=True)
+            version = qr.version
+        elif version < 1 or version > 40:
             version = 1
 
         if style == 'circle':
@@ -53,7 +71,7 @@ class QRGenerator:
         qr = qrcode.QRCode(
             version=version,
             error_correction=error_correction_map.get(error_correction, ERROR_CORRECT_M),
-            box_size=1,
+            box_size=10,
             border=4
         )
         qr.add_data(data)
@@ -78,7 +96,7 @@ class QRGenerator:
         qr = qrcode.QRCode(
             version=version,
             error_correction=error_correction_map.get(error_correction, ERROR_CORRECT_M),
-            box_size=5,
+            box_size=10,
             border=4
         )
         qr.add_data(data)

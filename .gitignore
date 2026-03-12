@@ -1,0 +1,8 @@
+__pycache__/qr_decoder.cpython-314.pyc
+__pycache__/qr_encoder.cpython-314.pyc
+services/__pycache__/__init__.cpython-314.pyc
+services/__pycache__/compression.cpython-314.pyc
+services/__pycache__/file_manager.cpython-314.pyc
+services/__pycache__/qr_collector.cpython-314.pyc
+services/__pycache__/qr_generator.cpython-314.pyc
+services/__pycache__/text_processor.cpython-314.pyc

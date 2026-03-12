@@ -12,7 +12,16 @@ class QRCollector:
         self.text_processor = TextProcessor()
         self.start_tag = "#QRSTART:#"
         self.end_tag = "#QREND#"
+        # Новый формат с MODE и CMP
         self.block_pattern = re.compile(
+            r'FILEPATH:(?P<path>[^ ]+) BLOCKID:(?P<id>[^ ]+) BLOCKNUM:(?P<num>\d+) TIME:(?P<time>[^ ]+) CHECKSUM:(?P<checksum>[^ ]+) MODE:(?P<mode>[^ ]+) CMP:(?P<cmp>[^ ]+)'
+        )
+        # Формат с BLOCKNUM но без MODE/CMP
+        self.block_pattern_num = re.compile(
+            r'FILEPATH:(?P<path>[^ ]+) BLOCKID:(?P<id>[^ ]+) BLOCKNUM:(?P<num>\d+) TIME:(?P<time>[^ ]+) CHECKSUM:(?P<checksum>[^ ]+)'
+        )
+        # Старый формат без BLOCKNUM
+        self.block_pattern_old = re.compile(
             r'FILEPATH:(?P<path>[^ ]+) BLOCKID:(?P<id>[^ ]+) TIME:(?P<time>[^ ]+) CHECKSUM:(?P<checksum>[^ ]+)'
         )
 
@@ -80,22 +89,59 @@ class QRCollector:
         metadata = None
 
         start_idx = content.find(self.start_tag)
-        end_idx = content.find(self.end_tag)
+        # Используем rfind для поиска ПОСЛЕДНЕГО #QREND#
+        end_idx = content.rfind(self.end_tag)
 
         if start_idx > -1 and end_idx > start_idx:
-            metadata_text = content[start_idx:end_idx]
+            # Метаданные могут быть ДО #QRSTART:#
+            metadata_text = content[:start_idx].strip()
 
+            # Пробуем новый формат с MODE и CMP
             match = self.block_pattern.search(metadata_text)
             if match:
                 metadata = {
                     'file_path': match.group('path'),
                     'block_id': match.group('id'),
+                    'block_num': int(match.group('num')),
                     'timestamp': match.group('time'),
                     'checksum': match.group('checksum'),
+                    'mode': match.group('mode'),
+                    'compress': match.group('cmp'),
                     'raw_qr_text': content,
-                    'qr_content': content[end_idx + len(self.end_tag):].replace('\n', ' ')
+                    'qr_content': content[start_idx + len(self.start_tag):end_idx]
                 }
-
+                return metadata
+            
+            # Пробуем формат с BLOCKNUM но без MODE/CMP
+            match = self.block_pattern_num.search(metadata_text)
+            if match:
+                metadata = {
+                    'file_path': match.group('path'),
+                    'block_id': match.group('id'),
+                    'block_num': int(match.group('num')),
+                    'timestamp': match.group('time'),
+                    'checksum': match.group('checksum'),
+                    'mode': 'T',  # По умолчанию текстовый
+                    'compress': 'none',
+                    'raw_qr_text': content,
+                    'qr_content': content[start_idx + len(self.start_tag):end_idx]
+                }
+                return metadata
+            
+            # Пробуем старый формат без BLOCKNUM
+            match = self.block_pattern_old.search(metadata_text)
+            if match:
+                metadata = {
+                    'file_path': match.group('path'),
+                    'block_id': match.group('id'),
+                    'block_num': 1,  # По умолчанию для старого формата
+                    'timestamp': match.group('time'),
+                    'checksum': match.group('checksum'),
+                    'mode': 'T',
+                    'compress': 'none',
+                    'raw_qr_text': content,
+                    'qr_content': content[start_idx + len(self.start_tag):end_idx]
+                }
                 return metadata
 
         return None
@@ -161,7 +207,17 @@ class QRCollector:
         if not blocks:
             return []
 
-        block_ids = set([block['block_id'] for block in blocks])
-        all_possible_ids = set([block['block_id'] for block in blocks])
-
+        # Сортируем блоки по block_num
+        blocks.sort(key=lambda b: b.get('block_num', 0))
+        
+        # Получаем все номера блоков
+        block_nums = [b.get('block_num', i+1) for i, b in enumerate(blocks)]
+        
+        # Находим недостающие
+        if block_nums:
+            expected_nums = set(range(1, max(block_nums) + 1))
+            actual_nums = set(block_nums)
+            missing = sorted(expected_nums - actual_nums)
+            return missing
+        
         return []
