@@ -26,6 +26,9 @@ COMPRESSION_METHODS = {
 # Поддерживаемые форматы изображений для декодера
 IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tiff', '.webp'}
 
+# Поддерживаемые форматы видео для декодера
+VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.wmv'}
+
 # Настройки по умолчанию
 DEFAULTS = {
     'output_dir': 'qr_output',
