@@ -188,9 +188,9 @@ def main():
     print(f"Всего блоков: {total_blocks}")
 
     for i, (block_id, block_content, block_num) in enumerate(blocks):
-        # Формируем минимальные метаданные для QR
+        # Формируем метаданные для QR (включая имя файла)
         qr_metadata = processor.generate_block_metadata(
-            block_num, total_blocks, mode_flag, compress_method
+            block_num, total_blocks, mode_flag, compress_method, file_name
         )
         # Данные внутри QR: только метаданные блока + контент
         full_data = f"{qr_metadata} {block_content}"

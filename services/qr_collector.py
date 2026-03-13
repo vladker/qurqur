@@ -12,9 +12,9 @@ class QRCollector:
         self.text_processor = TextProcessor()
         self.start_tag = "#QRS#"
         self.end_tag = "#QRE#"
-        # Новый компактный формат: BN:X TOT:Y M:Z C:W
+        # Новый компактный формат: FN:filename.ext BN:X TOT:Y M:Z C:W
         self.block_pattern = re.compile(
-            r'BN:(?P<num>\d+) TOT:(?P<tot>\d+) M:(?P<mode>[TB]) C:(?P<cmp>\w+)'
+            r'(?:FN:(?P<file>[^ ]+) )?BN:(?P<num>\d+) TOT:(?P<tot>\d+) M:(?P<mode>[TB]) C:(?P<cmp>\w+)'
         )
 
     def collect_qr_files(self, qr_directory: str, output_file: str = None) -> Dict[str, any]:
@@ -88,7 +88,7 @@ class QRCollector:
             # Метаданные перед #QRSTART:#
             metadata_text = content[:start_idx].strip()
 
-            # Пробуем новый компактный формат: BN:X TOT:Y M:Z C:W
+            # Пробуем новый компактный формат: BN:X TOT:Y M:Z C:W или FN:file BN:X TOT:Y M:Z C:W
             match = self.block_pattern.search(metadata_text)
             if match:
                 metadata = {
@@ -96,6 +96,7 @@ class QRCollector:
                     'total_blocks': int(match.group('tot')),
                     'mode': match.group('mode'),
                     'compress': match.group('cmp'),
+                    'file_name': match.group('file') if match.group('file') else '',
                     'raw_qr_text': content,
                     'qr_content': content[start_idx + len(self.start_tag):end_idx]
                 }

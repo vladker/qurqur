@@ -121,9 +121,11 @@ class TextProcessor:
 
         return metadata
 
-    def generate_block_metadata(self, block_num: int, total_blocks: int, mode: str, compress: str) -> str:
-        """Генерирует минимальную строку метаданных для QR-кода"""
-        # Формат: BN:X TOT:Y M:Z C:W (очень компактно)
+    def generate_block_metadata(self, block_num: int, total_blocks: int, mode: str, compress: str, file_name: str = "") -> str:
+        """Генерирует строку метаданных для QR-кода"""
+        # Формат: FN:filename.ext BN:X TOT:Y M:Z C:W (компактно)
+        if file_name:
+            return f"FN:{file_name} BN:{block_num} TOT:{total_blocks} M:{mode} C:{compress}"
         return f"BN:{block_num} TOT:{total_blocks} M:{mode} C:{compress}"
 
     def _encode_path(self, file_path: str) -> str:

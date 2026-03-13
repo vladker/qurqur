@@ -144,10 +144,9 @@ def main():
             if 'total_blocks' in block_data:
                 total_blocks = block_data['total_blocks']
             
-            # Извлекаем имя файла из текста над QR (если есть)
-            if original_file_name == "restored_file" and 'file' in item:
-                # Пытаемся извлечь из имени файла QR
-                pass
+            # Извлекаем имя файла из метаданных QR
+            if original_file_name == "restored_file" and block_data.get('file_name'):
+                original_file_name = block_data['file_name']
             
             print(f"  Блок {block_data['block_num']}: ID={block_data.get('block_id', 'N/A')}")
         else:
@@ -233,8 +232,13 @@ def main():
 
     # Определение имени файла для сохранения
     # Используем имя по умолчанию или из параметров
-    default_ext = '.bin' if is_binary else '.txt'
-    default_output = os.path.join(qr_directory, f"{original_file_name}{default_ext}")
+    if '.' in os.path.splitext(original_file_name)[1]:
+        # Расширение уже есть в имени файла
+        default_output = os.path.join(qr_directory, original_file_name)
+    else:
+        # Нет расширения - добавляем по типу
+        default_ext = '.bin' if is_binary else '.txt'
+        default_output = os.path.join(qr_directory, f"{original_file_name}{default_ext}")
 
     # Выбор способа сохранения
     print("\n2. Выберите способ сохранения:")
