@@ -6,22 +6,23 @@ QR Code File Encoder - Основной скрипт
 """
 
 import os
-import sys
 import base64
 
+from config import VERSION, TEXT_EXTENSIONS, COMPRESSION_METHODS, DEFAULTS
 from services.text_processor import TextProcessor
 from services.qr_generator import QRGenerator
 from services.compression import CompressionManager
 
+
 def main():
     """Основная функция программы"""
-    print("\n╔══════════════════════════════╗")
-    print("║   QR CODE FILE ENCODER v2.0   ║")
+    print(f"\n╔══════════════════════════════╗")
+    print(f"║   QR CODE FILE ENCODER v{VERSION}   ║")
     print("║   Поддержка любых файлов      ║")
     print("╚══════════════════════════════╝\n")
 
     input_file = input("1. Введите путь к файлу: ").strip()
-    
+
     # Удаляем кавычки если пользователь их ввёл
     if input_file.startswith('"') and input_file.endswith('"'):
         input_file = input_file[1:-1]
@@ -40,17 +41,15 @@ def main():
     file_size = os.path.getsize(input_file)
     file_name = os.path.basename(input_file)
     file_ext = os.path.splitext(file_name)[1].lower()
-    
+
     print(f"\nФайл загружен: {input_file}")
     print(f"Размер: {file_size:,} байт")
     print(f"Тип: {file_ext or 'без расширения'}")
 
     # Автоматическое определение режима кодирования
-    text_extensions = {'.txt', '.md', '.py', '.js', '.ts', '.html', '.css', '.json', '.xml', '.yaml', '.yml', '.csv', '.log', '.ini', '.cfg', '.conf', '.sh', '.bat', '.cmd', '.ps1', '.sql', '.rst', '.rtf'}
-    
     # Пытаемся определить, текстовый ли файл
-    is_text = file_ext in text_extensions
-    
+    is_text = file_ext in TEXT_EXTENSIONS
+
     if not is_text and file_size > 0:
         # Проверяем первые байты файла
         try:
@@ -68,7 +67,7 @@ def main():
                     is_text = False
         except:
             is_text = False
-    
+
     print(f"\n2. Режим кодирования:")
     if is_text:
         print("  [1] Текстовый (UTF-8)")
@@ -78,17 +77,17 @@ def main():
         print("  [1] Бинарный (Base64, рекомендуется)")
         print("  [2] Текстовый (только если файл текстовый)")
         default_mode = '1'
-    
+
     encode_mode = input(f"Ваш выбор (1/2, по умолчанию {default_mode}): ").strip()
     if not encode_mode:
         encode_mode = default_mode
-    
+
     # Определяем режим: is_binary=True для бинарного режима
     if is_text:
         is_binary = encode_mode == '2'  # Для текстовых файлов бинарный = вариант 2
     else:
         is_binary = encode_mode == '1'  # Для бинарных файлов бинарный = вариант 1
-    
+
     # Чтение файла
     try:
         if is_binary:
@@ -119,16 +118,12 @@ def main():
     print("  [4] BZ2")
     print("  [5] LZMA")
     print("  [6] Без сжатия")
-    
+
     compress_choice = input(f"Ваш выбор (1-6, по умолчанию 1): ").strip()
-    
-    compress_map = {
-        '1': 'auto', '2': 'zip', '3': 'gzip', '4': 'bz2', '5': 'lzma', '6': 'none'
-    }
-    compress_method = compress_map.get(compress_choice, 'auto')
-    
+    compress_method = COMPRESSION_METHODS.get(compress_choice, 'auto')
+
     compression = CompressionManager()
-    
+
     # Архивация (только для бинарных или больших файлов)
     original_size = len(file_content.encode('utf-8'))
     if is_binary or original_size > 10000:
@@ -186,7 +181,7 @@ def main():
     mode_flag = 'B' if is_binary else 'T'
 
     # Создаем папку для вывода
-    output_dir = "qr_output"
+    output_dir = DEFAULTS['output_dir']
     os.makedirs(output_dir, exist_ok=True)
 
     print(f"\nГенерация QR-кодов...")
@@ -207,23 +202,23 @@ def main():
             error_correction=error_correction,
             style=style
         )
-        
+
         # Добавляем текст над QR-кодом с полной информацией
         header_text = f"{file_name} | Блок {block_num}/{total_blocks} | {timestamp}"
         qr_with_text = generator.add_metadata_text(qr_image, header_text, position='top')
-        
+
         output_path = f"{output_dir}/qr_{block_num}.png"
         generator.save_qr(qr_with_text, output_path, "PNG")
         print(f"  Создан: {output_path} (блок {block_num})")
 
     print(f"\n✓ Готово! Всего создано QR-кодов: {len(blocks)}")
     print(f"Папка сохранения: {os.path.abspath(output_dir)}")
-    
+
     # Информация для восстановления
     print(f"\nДля восстановления файла используйте:")
     print(f"  python qr_decoder.py")
     print(f"  и укажите папку: {os.path.abspath(output_dir)}")
 
+
 if __name__ == "__main__":
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     main()
