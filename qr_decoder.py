@@ -65,11 +65,33 @@ def decode_qr_images(qr_directory: str) -> list:
                 if img is None:
                     print(f"[{i}/{len(files)}] {filename}: не удалось прочитать")
                     continue
-                qr_codes = decode(img)
+                import os
+                with open(os.devnull, 'w') as devnull:
+                    import sys
+                    old_stdout = sys.stdout
+                    old_stderr = sys.stderr
+                    sys.stdout = devnull
+                    sys.stderr = devnull
+                    try:
+                        qr_codes = decode(img)
+                    finally:
+                        sys.stdout = old_stdout
+                        sys.stderr = old_stderr
             else:
                 # Используем PIL
                 img = Image.open(file_path)
-                qr_codes = decode(img)
+                import os
+                with open(os.devnull, 'w') as devnull:
+                    import sys
+                    old_stdout = sys.stdout
+                    old_stderr = sys.stderr
+                    sys.stdout = devnull
+                    sys.stderr = devnull
+                    try:
+                        qr_codes = decode(img)
+                    finally:
+                        sys.stdout = old_stdout
+                        sys.stderr = old_stderr
             
             if qr_codes:
                 for qr in qr_codes:
@@ -152,8 +174,18 @@ def decode_qr_from_video(video_path: str, output_dir: str = None) -> list:
             print(f"Обработка: {progress * 10}% ({frame_count}/{total_frames} кадров)")
             last_progress = progress
         
-        # Пробуем распознать QR-коды на кадре
-        qr_codes = decode(frame)
+        # Пробуем распознать QR-коды на кадре (подавляем warnings от zbar)
+        with open(os.devnull, 'w') as devnull:
+            import sys
+            old_stdout = sys.stdout
+            old_stderr = sys.stderr
+            sys.stdout = devnull
+            sys.stderr = devnull
+            try:
+                qr_codes = decode(frame)
+            finally:
+                sys.stdout = old_stdout
+                sys.stderr = old_stderr
         
         if qr_codes:
             for qr in qr_codes:
