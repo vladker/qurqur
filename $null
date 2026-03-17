@@ -1,8 +1,0 @@
-error: pathspec 'SESSION_SUMMARY.md' did not match any file(s) known to git
-error: pathspec ';' did not match any file(s) known to git
-error: pathspec 'rm' did not match any file(s) known to git
-error: pathspec '-f' did not match any file(s) known to git
-error: pathspec ''$null'' did not match any file(s) known to git
-error: pathspec ';' did not match any file(s) known to git
-error: pathspec 'git' did not match any file(s) known to git
-error: pathspec 'status' did not match any file(s) known to git

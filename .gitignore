@@ -15,8 +15,9 @@ env/
 *.swp
 *.swo
 
-# Output directory
-qr_output/
+# Build output
+dist/
+build/
 
 # Logs
 *.log
