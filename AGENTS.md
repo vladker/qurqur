@@ -8,16 +8,14 @@ This is a QR Code File Encoder CLI application (v2.0) that generates QR codes fr
 qurqur/
 ├── qr_encoder.py          # Main CLI for generating QR codes
 ├── qr_decoder.py          # Main CLI for decoding QR codes
+├── qr_demo.py             # QR code demo viewer (GUI)
 ├── config.py              # Configuration constants
 ├── services/
 │   ├── __init__.py
 │   ├── text_processor.py  # Text splitting and metadata handling
 │   ├── qr_generator.py    # QR code generation
-│   ├── file_manager.py    # File I/O operations
 │   ├── qr_collector.py    # QR code collection/decoding
 │   └── compression.py     # Data compression (ZIP, GZIP, BZ2, LZMA)
-├── utils/
-│   └── __init__.py
 └── requirements.txt       # Dependencies
 ```
 
@@ -138,10 +136,11 @@ if not os.path.exists(input_file):
 ## Dependencies
 - `qrcode>=7.4.0` - QR code generation
 - `Pillow>=10.0.0` - Image handling
-- `reportlab>=4.0.0` - PDF generation
-- `svgwrite>=1.4.3` - SVG support
 - `pyzbar>=0.1.9` - QR code decoding
-- `python-dateutil>=2.8.0` - Date/time utilities
+
+## Optional Dependencies
+- `svgwrite>=1.4.3` - SVG export support
+- `opencv-python>=4.8.0` - Video processing for decoder
 
 ## Notes for Agents Working on This Project
 - This is a CLI tool with interactive input/output
