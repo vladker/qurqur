@@ -49,6 +49,20 @@ flake8 .
 autopep8 --in-place --aggressive --aggressive *.py services/*.py
 ```
 
+## Build Commands (Exe)
+```bash
+# Собрать exe-версии (требуется активированный .venv с установленным pyinstaller)
+python build_exe.py
+
+# Или вручную через PyInstaller:
+.venv/Scripts/python.exe -m PyInstaller --console --clean --name qr_encoder qr_encoder.py
+.venv/Scripts/python.exe -m PyInstaller --console --clean --name qr_decoder qr_decoder.py
+
+# Результат:
+# dist/qr_encoder/qr_encoder.exe
+# dist/qr_decoder/qr_decoder.exe
+```
+
 ## Test Commands
 ```bash
 # Run all tests

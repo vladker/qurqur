@@ -5,6 +5,13 @@ QR Code File Encoder - Основной скрипт
 Поддерживает любые файлы: текстовые, бинарные, с архивацией
 """
 
+import sys
+import io
+
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 import os
 import base64
 
@@ -14,6 +21,16 @@ from services.qr_generator import QRGenerator
 from services.compression import CompressionManager
 
 
+def safe_input(prompt: str = "") -> str:
+    """Безопасный ввод с обработкой случая когда stdin недоступен"""
+    try:
+        return input(prompt)
+    except EOFError:
+        print("\nОшибка: невозможно получить ввод. Запустите приложение из командной строки.")
+        print(f"Пример: qr_encoder.exe <путь_к_файлу>")
+        sys.exit(1)
+
+
 def main():
     """Основная функция программы"""
     print(f"\n╔══════════════════════════════╗")
@@ -21,7 +38,7 @@ def main():
     print("║   Поддержка любых файлов      ║")
     print("╚══════════════════════════════╝\n")
 
-    input_file = input("1. Введите путь к файлу: ").strip()
+    input_file = safe_input("1. Введите путь к файлу: ").strip()
 
     # Удаляем кавычки если пользователь их ввёл
     if input_file.startswith('"') and input_file.endswith('"'):
@@ -78,7 +95,7 @@ def main():
         print("  [2] Текстовый (только если файл текстовый)")
         default_mode = '1'
 
-    encode_mode = input(f"Ваш выбор (1/2, по умолчанию {default_mode}): ").strip()
+    encode_mode = safe_input(f"Ваш выбор (1/2, по умолчанию {default_mode}): ").strip()
     if not encode_mode:
         encode_mode = default_mode
 
@@ -119,7 +136,7 @@ def main():
     print("  [5] LZMA")
     print("  [6] Без сжатия")
 
-    compress_choice = input(f"Ваш выбор (1-6, по умолчанию 1): ").strip()
+    compress_choice = safe_input(f"Ваш выбор (1-6, по умолчанию 1): ").strip()
     compress_method = COMPRESSION_METHODS.get(compress_choice, 'auto')
 
     compression = CompressionManager()
@@ -149,7 +166,7 @@ def main():
 
     # Настройки QR-кода
     print("\n4. Версия QR (1-40, Enter для автоподбора): ", end='')
-    version_input = input().strip()
+    version_input = safe_input().strip()
     if not version_input:
         version = None
     else:
@@ -159,12 +176,12 @@ def main():
             version = None
 
     print("5. Коррекция ошибок (L/M/Q/H, по умолчанию M): ", end='')
-    error_correction = input().strip().upper()
+    error_correction = safe_input().strip().upper()
     if not error_correction:
         error_correction = "M"
 
     print("6. Стиль (square/circle, по умолчанию square): ", end='')
-    style = input().strip().lower()
+    style = safe_input().strip().lower()
     if not style:
         style = "square"
 
