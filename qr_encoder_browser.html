@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Encoder Lite (Browser)</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .drop-zone {
+            border: 3px dashed #3498db;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: #2980b9;
+            background: #e8f4fc;
+        }
+        .drop-zone-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .file-input {
+            display: none;
+        }
+        .file-info {
+            display: none;
+        }
+        .file-info.visible {
+            display: block;
+        }
+        .file-info h3 {
+            color: #27ae60;
+            margin-bottom: 10px;
+        }
+        .file-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .stat {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .progress-container {
+            display: none;
+            margin-top: 20px;
+        }
+        .progress-container.visible {
+            display: block;
+        }
+        .progress-bar {
+            height: 24px;
+            background: #ecf0f1;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3498db, #2980b9);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+        }
+        .progress-text {
+            margin-top: 8px;
+            text-align: center;
+            color: #666;
+        }
+        .demo-section {
+            display: none;
+        }
+        .demo-section.visible {
+            display: block;
+        }
+        .demo-controls {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .speed-control input[type="range"] {
+            width: 150px;
+        }
+        .demo-display {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+        }
+        #demo-canvas {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .demo-meta {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #666;
+        }
+        .demo-nav {
+            margin-top: 15px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        .demo-nav button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+        .demo-nav button:hover {
+            transform: scale(1.05);
+        }
+        .btn-play {
+            background: #27ae60;
+            color: white;
+        }
+        .btn-pause {
+            background: #f39c12;
+            color: white;
+        }
+        .btn-prev, .btn-next {
+            background: #3498db;
+            color: white;
+        }
+        .btn-primary {
+            background: #3498db;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.3s;
+        }
+        .btn-primary:hover {
+            background: #2980b9;
+        }
+        .btn-primary:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .preview-item {
+            aspect-ratio: 1;
+            background: white;
+            border-radius: 4px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .preview-item:hover {
+            transform: scale(1.1);
+        }
+        .preview-item.current {
+            border: 3px solid #3498db;
+        }
+        .preview-item canvas {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        .settings {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+        }
+        .setting-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .setting-group label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        .setting-group select, .setting-group input {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .hidden {
+            display: none !important;
+        }
+        .download-section {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .download-section .btn-primary {
+            flex: 1;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .loading-overlay.hidden {
+            display: none;
+        }
+        .loading-box {
+            background: white;
+            padding: 30px 50px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #ecf0f1;
+            border-top-color: #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            .card {
+                padding: 15px;
+            }
+            .demo-controls {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>QR Encoder Lite (Browser)</h1>
+
+    <div class="card">
+        <div class="drop-zone" id="dropZone">
+            <div class="drop-zone-icon">📁</div>
+            <div>Перетащите файл сюда</div>
+            <div style="color: #666; margin-top: 5px;">или кликните для выбора</div>
+        </div>
+        <input type="file" id="fileInput" class="file-input">
+        
+        <div class="file-info" id="fileInfo">
+            <h3>✅ Файл загружен</h3>
+            <div class="file-stats">
+                <div class="stat">
+                    <div class="stat-label">Имя файла</div>
+                    <div class="stat-value" id="statName">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Размер</div>
+                    <div class="stat-value" id="statSize">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Base64</div>
+                    <div class="stat-value" id="statBase64">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">После сжатия</div>
+                    <div class="stat-value" id="statCompressed">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Сжатие</div>
+                    <div class="stat-value" id="statRatio">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">QR кодов</div>
+                    <div class="stat-value" id="statQrcount">-</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%">0%</div>
+            </div>
+            <div class="progress-text" id="progressText">Подготовка...</div>
+        </div>
+    </div>
+
+    <div class="card demo-section" id="demoSection">
+        <h2 style="margin-bottom: 15px;">🎬 Демо режим</h2>
+        
+        <div class="demo-controls">
+            <div class="checkbox-wrapper">
+                <input type="checkbox" id="demoEnabled">
+                <label for="demoEnabled">Включить демо</label>
+            </div>
+            <div class="speed-control">
+                <label>Скорость:</label>
+                <input type="range" id="speedSlider" min="0.5" max="10" step="0.5" value="3">
+                <span id="speedValue">3 сек/QR</span>
+            </div>
+        </div>
+
+        <div class="demo-display">
+            <canvas id="demo-canvas" width="400" height="460"></canvas>
+            <div class="demo-meta" id="demoMeta">Блок 0/0</div>
+            <div class="demo-nav">
+                <button class="btn-prev" id="btnPrev">◀ Назад</button>
+                <button class="btn-play" id="btnPlay">▶ Воспроизвести</button>
+                <button class="btn-next" id="btnNext">Вперёд ▶</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 style="margin-bottom: 15px;">⚙️ Настройки</h2>
+        <div class="settings">
+            <div class="setting-group">
+                <label>Коррекция ошибок</label>
+                <select id="errorCorrection">
+                    <option value="L">L (7%)</option>
+                    <option value="M" selected>M (15%)</option>
+                    <option value="Q">Q (25%)</option>
+                    <option value="H">H (30%)</option>
+                </select>
+            </div>
+            <div class="setting-group">
+                <label>Размер блока (символов)</label>
+                <input type="number" id="blockSize" value="200" min="50" max="500" step="10">
+            </div>
+        </div>
+        <div style="margin-top: 20px;">
+            <button class="btn-primary" id="btnProcess">🔄 Обработать файл</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 style="margin-bottom: 15px;">🖼️ Превью QR кодов</h2>
+        <div class="preview-grid" id="previewGrid"></div>
+        <div class="download-section" id="downloadSection">
+            <button class="btn-primary" id="btnDownload">⬇️ Скачать все QR (ZIP)</button>
+        </div>
+    </div>
+
+    <div class="loading-overlay hidden" id="loadingOverlay">
+        <div class="loading-box">
+            <div class="loading-spinner"></div>
+            <div id="loadingText">Загрузка...</div>
+        </div>
+    </div>
+
+    <script>
+        // Application state
+        var state = {
+            file: null,
+            fileName: '',
+            fileSize: 0,
+            base64Data: '',
+            compressedData: '',
+            qrBlocks: [],
+            currentBlock: 0,
+            isPlaying: false,
+            playInterval: null,
+            ecLevel: 'M',
+            blockSize: 200
+        };
+
+        // DOM Elements
+        var dropZone = document.getElementById('dropZone');
+        var fileInput = document.getElementById('fileInput');
+        var fileInfo = document.getElementById('fileInfo');
+        var progressContainer = document.getElementById('progressContainer');
+        var progressFill = document.getElementById('progressFill');
+        var progressText = document.getElementById('progressText');
+        var demoSection = document.getElementById('demoSection');
+        var previewGrid = document.getElementById('previewGrid');
+        var demoCanvas = document.getElementById('demo-canvas');
+        var demoMeta = document.getElementById('demoMeta');
+        var downloadSection = document.getElementById('downloadSection');
+        var loadingOverlay = document.getElementById('loadingOverlay');
+        var loadingText = document.getElementById('loadingText');
+
+        // Event Listeners
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length) {
+                handleFile(fileInput.files[0]);
+            }
+        });
+
+        document.getElementById('errorCorrection').addEventListener('change', (e) => {
+            state.ecLevel = e.target.value;
+        });
+        document.getElementById('blockSize').addEventListener('change', (e) => {
+            state.blockSize = parseInt(e.target.value);
+        });
+
+        document.getElementById('btnProcess').addEventListener('click', processFile);
+        document.getElementById('btnDownload').addEventListener('click', downloadAll);
+
+        // Demo controls
+        document.getElementById('demoEnabled').addEventListener('change', (e) => {
+            if (e.target.checked && state.qrBlocks.length > 0) {
+                demoSection.classList.add('visible');
+                showBlock(state.currentBlock);
+            } else {
+                demoSection.classList.remove('visible');
+                stopDemo();
+            }
+        });
+
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            document.getElementById('speedValue').textContent = e.target.value + ' сек/QR';
+            if (state.isPlaying) {
+                stopDemo();
+                startDemo();
+            }
+        });
+
+        document.getElementById('btnPlay').addEventListener('click', () => {
+            if (state.isPlaying) {
+                stopDemo();
+            } else {
+                startDemo();
+            }
+        });
+
+        document.getElementById('btnPrev').addEventListener('click', () => {
+            if (state.currentBlock > 0) {
+                state.currentBlock--;
+                showBlock(state.currentBlock);
+                updatePreviewSelection();
+            }
+        });
+
+        document.getElementById('btnNext').addEventListener('click', () => {
+            if (state.currentBlock < state.qrBlocks.length - 1) {
+                state.currentBlock++;
+                showBlock(state.currentBlock);
+                updatePreviewSelection();
+            }
+        });
+
+        function showLoading(text) {
+            loadingText.textContent = text;
+            loadingOverlay.classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            loadingOverlay.classList.add('hidden');
+        }
+
+        function handleFile(file) {
+            state.file = file;
+            state.fileName = file.name;
+            state.fileSize = file.size;
+
+            document.getElementById('statName').textContent = file.name;
+            document.getElementById('statSize').textContent = formatBytes(file.size);
+
+            fileInfo.classList.add('visible');
+
+            var reader = new FileReader();
+            reader.onload = async function(e) {
+                var arrayBuffer = e.target.result;
+                var bytes = new Uint8Array(arrayBuffer);
+
+                // Base64 encode
+                var binary = '';
+                for (var i = 0; i < bytes.length; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                state.base64Data = btoa(binary);
+
+                document.getElementById('statBase64').textContent = state.base64Data.length.toLocaleString() + ' символов';
+
+                // Compress using Deflate (store mode for simplicity - no actual compression)
+                // For real compression, we'd need pako library
+                // Using store mode (no compression) to keep file self-contained
+                state.compressedData = state.base64Data;
+
+                var compressionRatio = ((1 - state.compressedData.length / state.base64Data.length) * 100).toFixed(1);
+                document.getElementById('statCompressed').textContent = state.compressedData.length.toLocaleString() + ' символов';
+                document.getElementById('statRatio').textContent = compressionRatio + '%';
+
+                var qrCount = Math.ceil(state.compressedData.length / state.blockSize);
+                document.getElementById('statQrcount').textContent = qrCount;
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        async function processFile() {
+            if (!state.file) {
+                alert('Сначала выберите файл');
+                return;
+            }
+
+            state.ecLevel = document.getElementById('errorCorrection').value;
+            state.blockSize = parseInt(document.getElementById('blockSize').value);
+
+            progressContainer.classList.add('visible');
+            progressFill.style.width = '0%';
+            progressFill.textContent = '0%';
+            progressText.textContent = 'Обработка...';
+
+            var blocks = [];
+            var totalBlocks = Math.ceil(state.compressedData.length / state.blockSize);
+            var timestamp = Math.floor(Date.now() / 1000);
+
+            for (var i = 0; i < totalBlocks; i++) {
+                var start = i * state.blockSize;
+                var end = Math.min(start + state.blockSize, state.compressedData.length);
+                var blockContent = state.compressedData.substring(start, end);
+                var qrData = 'FN:' + state.fileName + ' BN:' + (i + 1) + ' TOT:' + totalBlocks + ' M:B C:zip #QRS#' + blockContent + '#QRE#';
+                blocks.push({
+                    index: i,
+                    content: blockContent,
+                    fullData: qrData,
+                    meta: state.fileName + ' | ' + (i + 1) + '/' + totalBlocks + ' | ' + timestamp
+                });
+
+                var progress = Math.round((i + 1) / totalBlocks * 100);
+                progressFill.style.width = progress + '%';
+                progressFill.textContent = progress + '%';
+                progressText.textContent = 'Генерация QR: ' + (i + 1) + '/' + totalBlocks;
+
+                if (i % 50 === 0) {
+                    await new Promise(r => setTimeout(r, 0));
+                }
+            }
+
+            state.qrBlocks = blocks;
+            progressText.textContent = 'Готово! Всего QR кодов: ' + blocks.length;
+
+            generatePreviews();
+            downloadSection.classList.remove('hidden');
+
+            document.getElementById('demoEnabled').disabled = false;
+        }
+
+        function generatePreviews() {
+            previewGrid.innerHTML = '';
+            var ecLevel = state.ecLevel;
+            var size = 80;
+
+            state.qrBlocks.forEach((block, index) => {
+                var canvas = document.createElement('canvas');
+                var qr = qrcode(0, ecLevel);
+                qr.addData(block.fullData);
+                qr.make();
+                
+                var moduleCount = qr.getModuleCount();
+                canvas.width = size;
+                canvas.height = size;
+                var ctx = canvas.getContext('2d');
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, size, size);
+                ctx.fillStyle = 'black';
+
+                var cellSize = size / moduleCount;
+                for (var row = 0; row < moduleCount; row++) {
+                    for (var col = 0; col < moduleCount; col++) {
+                        if (qr.isDark(row, col)) {
+                            ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+                        }
+                    }
+                }
+
+                var wrapper = document.createElement('div');
+                wrapper.className = 'preview-item';
+                wrapper.appendChild(canvas);
+                wrapper.title = 'QR #' + (index + 1);
+                wrapper.addEventListener('click', () => {
+                    state.currentBlock = index;
+                    showBlock(index);
+                    updatePreviewSelection();
+                    
+                    // Enable and scroll to demo
+                    document.getElementById('demoEnabled').checked = true;
+                    demoSection.classList.add('visible');
+                });
+                previewGrid.appendChild(wrapper);
+            });
+        }
+
+        function showBlock(index) {
+            if (index < 0 || index >= state.qrBlocks.length) return;
+
+            var block = state.qrBlocks[index];
+            var ecLevel = state.ecLevel;
+            
+            var qr = qrcode(0, ecLevel);
+            qr.addData(block.fullData);
+            qr.make();
+            
+            var moduleCount = qr.getModuleCount();
+            var cellSize = Math.min(380, 380 * 2 / moduleCount);
+            var canvasSize = moduleCount * cellSize;
+            var metaHeight = 50;
+            var totalHeight = canvasSize + metaHeight;
+
+            demoCanvas.width = canvasSize + 40;
+            demoCanvas.height = totalHeight + 20;
+
+            var ctx = demoCanvas.getContext('2d');
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, demoCanvas.width, demoCanvas.height);
+
+            ctx.fillStyle = 'black';
+            for (var row = 0; row < moduleCount; row++) {
+                for (var col = 0; col < moduleCount; col++) {
+                    if (qr.isDark(row, col)) {
+                        ctx.fillRect(20 + col * cellSize, 20 + row * cellSize, cellSize, cellSize);
+                    }
+                }
+            }
+
+            ctx.fillStyle = '#333';
+            ctx.font = '14px Arial, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(block.meta, demoCanvas.width / 2, totalHeight + 10);
+
+            demoMeta.textContent = 'Блок ' + (index + 1) + '/' + state.qrBlocks.length;
+        }
+
+        function updatePreviewSelection() {
+            var items = previewGrid.querySelectorAll('.preview-item');
+            items.forEach((item, i) => {
+                item.classList.toggle('current', i === state.currentBlock);
+                if (i === state.currentBlock) {
+                    item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            });
+        }
+
+        function startDemo() {
+            if (state.qrBlocks.length === 0) return;
+            state.isPlaying = true;
+            document.getElementById('btnPlay').textContent = '⏸ Пауза';
+            document.getElementById('btnPlay').classList.remove('btn-play');
+            document.getElementById('btnPlay').classList.add('btn-pause');
+
+            var speed = parseFloat(document.getElementById('speedSlider').value) * 1000;
+            state.playInterval = setInterval(() => {
+                if (state.currentBlock < state.qrBlocks.length - 1) {
+                    state.currentBlock++;
+                    showBlock(state.currentBlock);
+                    updatePreviewSelection();
+                } else {
+                    stopDemo();
+                }
+            }, speed);
+        }
+
+        function stopDemo() {
+            state.isPlaying = false;
+            if (state.playInterval) {
+                clearInterval(state.playInterval);
+                state.playInterval = null;
+            }
+            document.getElementById('btnPlay').textContent = '▶ Воспроизвести';
+            document.getElementById('btnPlay').classList.remove('btn-pause');
+            document.getElementById('btnPlay').classList.add('btn-play');
+        }
+
+        async function downloadAll() {
+            if (state.qrBlocks.length === 0) return;
+
+            showLoading('Подготовка архива...');
+
+            try {
+                var zip = new JSZip();
+                var ecLevel = state.ecLevel;
+
+                for (var i = 0; i < state.qrBlocks.length; i++) {
+                    var block = state.qrBlocks[i];
+                    var canvas = document.createElement('canvas');
+                    var qr = qrcode(0, ecLevel);
+                    qr.addData(block.fullData);
+                    qr.make();
+                    
+                    var size = 400;
+                    canvas.width = size;
+                    canvas.height = size;
+                    var ctx = canvas.getContext('2d');
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, size, size);
+                    ctx.fillStyle = 'black';
+
+                    var moduleCount = qr.getModuleCount();
+                    var cellSize = size / moduleCount;
+
+                    for (var row = 0; row < moduleCount; row++) {
+                        for (var col = 0; col < moduleCount; col++) {
+                            if (qr.isDark(row, col)) {
+                                ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+                            }
+                        }
+                    }
+
+                    var dataUrl = canvas.toDataURL('image/png');
+                    zip.file('qr_' + String(i + 1).padStart(4, '0') + '.png', dataUrl.split(',')[1], { base64: true });
+
+                    if (i % 50 === 0) {
+                        loadingText.textContent = 'Добавление в архив: ' + (i + 1) + '/' + state.qrBlocks.length;
+                        await new Promise(r => setTimeout(r, 0));
+                    }
+                }
+
+                loadingText.textContent = 'Создание ZIP...';
+
+                var blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+                
+                // Ensure blob has correct MIME type
+                var safeBlob = new Blob([blob], { type: 'application/zip' });
+                
+                var link = document.createElement('a');
+                var fileName = state.fileName.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.[^/.]+$/, '') || 'file';
+                link.download = fileName + '_qr.zip';
+                link.href = URL.createObjectURL(safeBlob);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(link.href);
+            } catch (err) {
+                console.error('ZIP error:', err);
+                alert('Ошибка создания архива: ' + err.message);
+            }
+
+            hideLoading();
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            var k = 1024;
+            var sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            var i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Disable demo checkbox until processed
+        document.getElementById('demoEnabled').disabled = true;
+
+        // Check libraries loaded
+        window.addEventListener('load', function() {
+            if (typeof qrcode === 'undefined') {
+                alert('Ошибка: qrcode-generator не загружен');
+            }
+            if (typeof JSZip === 'undefined') {
+                alert('Ошибка: JSZip не загружен');
+            }
+        });
+    </script>
+</body>
+</html>
