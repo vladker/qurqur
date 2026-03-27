@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Tuple
 from .text_processor import TextProcessor
+from config import BLOCK_START_TAG, BLOCK_END_TAG
 
 
 class QRCollector:
@@ -10,8 +11,8 @@ class QRCollector:
 
     def __init__(self):
         self.text_processor = TextProcessor()
-        self.start_tag = "#QRS#"
-        self.end_tag = "#QRE#"
+        self.start_tag = BLOCK_START_TAG
+        self.end_tag = BLOCK_END_TAG
         # Новый компактный формат: FN:filename.ext BN:X TOT:Y M:Z C:W
         self.block_pattern = re.compile(
             r'(?:FN:(?P<file>[^ ]+) )?BN:(?P<num>\d+) TOT:(?P<tot>\d+) M:(?P<mode>[TB]) C:(?P<cmp>\w+)'
@@ -81,11 +82,11 @@ class QRCollector:
         metadata = None
 
         start_idx = content.find(self.start_tag)
-        # Используем rfind для поиска ПОСЛЕДНЕГО #QREND#
+        # Используем rfind для поиска ПОСЛЕДНЕГО вхождения end_tag
         end_idx = content.rfind(self.end_tag)
 
         if start_idx > -1 and end_idx > start_idx:
-            # Метаданные перед #QRSTART:#
+            # Метаданные перед тегом начала блока
             metadata_text = content[:start_idx].strip()
 
             # Пробуем новый компактный формат: BN:X TOT:Y M:Z C:W или FN:file BN:X TOT:Y M:Z C:W
@@ -121,8 +122,8 @@ class QRCollector:
         }
 
         block_pattern = re.compile(r'FILEPATH:(?P<path>[^ ]+) BLOCKID:(?P<id>[^ ]+) TIME:(?P<time>[^ ]+) CHECKSUM:(?P<checksum>[^ ]+)')
-        start_tag = "#QRSTART:#"
-        end_tag = "#QREND#"
+        start_tag = self.start_tag
+        end_tag = self.end_tag
 
         block_text = raw_text.strip()
         if not block_text:

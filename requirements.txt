@@ -1,14 +1,23 @@
-# QR Code File Encoder - Зависимости
+# QR Code Encoder/Decoder Dependencies
+# Core QR code generation
+qrcode[pil]>=7.4.2
 
-# Основные библиотеки для генерации QR-кодов и работы с изображениями
-qrcode>=7.4.0
+# Image processing
 Pillow>=10.0.0
 
-# Опционально для генерации SVG
-# svgwrite>=1.4.3
-
-# Для декодирования QR-кодов
+# QR code scanning
 pyzbar>=0.1.9
+opencv-python>=4.8.0
 
-# Для демонстратора QR-кодов (опционально)
-# opencv-python>=4.8.0
+# Video processing (optional, for video QR scanning)
+# opencv-python is already included above
+
+# Compression (built-in modules: gzip, bz2, lzma, zipfile)
+# No additional dependencies required
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Type hints (for development)
+typing-extensions>=4.7.0

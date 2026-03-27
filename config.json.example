@@ -1,0 +1,12 @@
+{
+    "output_dir": "qr_output",
+    "qr_version": null,
+    "error_correction": "M",
+    "style": "square",
+    "metadata_position": "top",
+    "compress_method": "auto",
+    "encode_mode": "auto",
+    "max_qr_block_chars": 2000,
+    "logging_level": "INFO",
+    "logging_file": "qr_encoder.log"
+}
