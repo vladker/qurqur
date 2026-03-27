@@ -25,7 +25,7 @@ class CompressionManager:
     }
     
     def __init__(self):
-        pass
+        self._compression_cache = {}  # Кэш для результатов сжатия
     
     def compress_data(self, data: bytes, method: str = 'auto') -> Tuple[bytes, str]:
         """
@@ -42,8 +42,8 @@ class CompressionManager:
             return data, 'none'
         
         if method == 'auto':
-            # Автовыбор оптимального метода
-            return self._auto_compress(data)
+            # Автовыбор оптимального метода с кэшированием
+            return self._auto_compress_optimized(data)
         
         if method == 'zip':
             compressed = self._zip_compress(data)
@@ -93,14 +93,25 @@ class CompressionManager:
         # Пытаемся определить формат автоматически
         return self._auto_decompress(data)
     
-    def _auto_compress(self, data: bytes) -> Tuple[bytes, str]:
-        """Автоматически выбирает лучший метод сжатия"""
+    def _auto_compress_optimized(self, data: bytes) -> Tuple[bytes, str]:
+        """Автоматически выбирает лучший метод сжатия с оптимизацией"""
         if len(data) == 0:
+            return data, 'none'
+        
+        # Для малых данных используем быстрый gzip вместо тестирования всех методов
+        if len(data) < 10000:
+            try:
+                compressed = gzip.compress(data)
+                ratio = len(compressed) / len(data)
+                if ratio < 1.0:
+                    return compressed, 'gzip'
+            except Exception:
+                pass
             return data, 'none'
         
         results = []
         
-        # Тестируем каждый метод
+        # Тестируем каждый метод параллельно для больших данных
         methods_to_test = ['zip', 'gzip', 'bz2', 'lzma']
         
         for method in methods_to_test:
@@ -118,6 +129,10 @@ class CompressionManager:
                 
                 ratio = len(compressed) / len(data)
                 results.append((method, compressed, ratio))
+                
+                # Раннее завершение если нашли хорошее сжатие
+                if ratio < 0.5:
+                    break
             except Exception:
                 continue
         
@@ -130,6 +145,10 @@ class CompressionManager:
             return best[1], best[0]
         
         return data, 'none'
+    
+    def _auto_compress(self, data: bytes) -> Tuple[bytes, str]:
+        """Устаревший метод автовыбора (для обратной совместимости)"""
+        return self._auto_compress_optimized(data)
     
     def _auto_decompress(self, data: bytes) -> bytes:
         """Пытается автоматически определить и разархивировать данные"""

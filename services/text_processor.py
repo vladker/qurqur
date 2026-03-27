@@ -2,6 +2,7 @@ import re
 import os
 from typing import List, Tuple
 import uuid
+from config import BLOCK_START_TAG, BLOCK_END_TAG, MAX_QR_BLOCK_CHARS
 
 
 class TextProcessor:
@@ -10,11 +11,10 @@ class TextProcessor:
     def __init__(self):
         # Максимальное количество символов для QR-кода
         # Версия 40 с коррекцией M вмещает ~2331 байт
-        # Но Base64 данные идут одной строкой, поэтому берём меньше
-        # С учётом метаданных (~150 символов) и запаса устанавливаем 200
-        self.max_qr_chars = 200  # Безопасный лимит для Base64
-        self.start_tag = "#QRS#"
-        self.end_tag = "#QRE#"
+        # С учётом метаданных (~100 символов) устанавливаем безопасный лимит
+        self.max_qr_chars = MAX_QR_BLOCK_CHARS
+        self.start_tag = BLOCK_START_TAG
+        self.end_tag = BLOCK_END_TAG
 
     def process_text(self, text: str) -> List[Tuple[str, str, int]]:
         """
@@ -156,9 +156,9 @@ class TextProcessor:
             block_text = block.get('content') or block.get('qr_content') or ''
 
             if block_text:
-                # Извлекаем контент между тегами, ТОЛЬКО если блок НАЧИНАЕТСЯ с #QRSTART:#
-                start_tag = '#QRSTART:#'
-                end_tag = '#QREND#'
+                # Извлекаем контент между тегами
+                start_tag = self.start_tag
+                end_tag = self.end_tag
 
                 if block_text.startswith(start_tag):
                     # Теги ещё не удалены - извлекаем контент

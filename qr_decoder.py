@@ -8,12 +8,33 @@ import sys
 import os
 import base64
 import argparse
+import logging
 
-from config import VERSION, DEFAULTS
+from config import VERSION, DEFAULTS, get_config_value
 from services.utils import setup_windows_encoding, safe_input, normalize_path, validate_dir_exists
 from services.qr_scanner import QRScanner
 from services.qr_collector import QRCollector
 from services.compression import CompressionManager
+
+
+def setup_logging(log_level: str = None, log_file: str = None):
+    """Configure logging for the application"""
+    if log_level is None:
+        log_level = get_config_value('logging_level', 'INFO')
+    if log_file is None:
+        log_file = get_config_value('logging_file', 'qr_decoder.log')
+    
+    numeric_level = getattr(logging, log_level.upper(), logging.INFO)
+    
+    logging.basicConfig(
+        level=numeric_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file, encoding='utf-8'),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+    return logging.getLogger(__name__)
 
 
 def parse_args():
@@ -258,40 +279,57 @@ def decode_and_restore(qr_directory: str, frames_dir: str = None, source_type: s
 def main():
     """Main entry point"""
     setup_windows_encoding()
+    logger = setup_logging()
     
-    args = parse_args()
-    
-    print(f"\n+==================================+")
-    print(f"|   QR CODE DECODER v{VERSION}           |")
-    print("|   Restore any files             |")
-    print("+==================================+\n")
-    
-    # CLI mode
-    if args.input:
-        input_path = normalize_path(args.input)
+    try:
+        args = parse_args()
         
-        if args.source_type == 'video':
-            scanner = QRScanner()
-            ext = os.path.splitext(input_path)[1].lower()
-            if ext not in scanner.get_supported_video_formats():
-                print(f"Error: unsupported video format: {ext}")
-                return
+        logger.info(f"QR Code Decoder v{VERSION} started")
+        
+        print(f"\n+==================================+")
+        print(f"|   QR CODE DECODER v{VERSION}           |")
+        print("|   Restore any files             |")
+        print("+==================================+\n")
+        
+        # CLI mode
+        if args.input:
+            input_path = normalize_path(args.input)
             
-            decode_and_restore(input_path, args.frames_dir, 'video')
+            if args.source_type == 'video':
+                scanner = QRScanner()
+                ext = os.path.splitext(input_path)[1].lower()
+                if ext not in scanner.get_supported_video_formats():
+                    logger.error(f"Unsupported video format: {ext}")
+                    print(f"Error: unsupported video format: {ext}")
+                    return
+                
+                decode_and_restore(input_path, args.frames_dir, 'video')
+            else:
+                error = validate_dir_exists(input_path)
+                if error:
+                    logger.error(f"Validation error: {error}")
+                    print(f"Error: {error}")
+                    return
+                
+                decode_and_restore(input_path, None, 'image')
+        
+        # Interactive mode
         else:
-            error = validate_dir_exists(input_path)
-            if error:
-                print(f"Error: {error}")
-                return
-            
-            decode_and_restore(input_path, None, 'image')
+            logger.info("Starting interactive mode")
+            qr_directory, frames_dir = interactive_mode()
+            if qr_directory:
+                source_type = 'video' if frames_dir else 'image'
+                decode_and_restore(qr_directory, frames_dir, source_type)
     
-    # Interactive mode
-    else:
-        qr_directory, frames_dir = interactive_mode()
-        if qr_directory:
-            source_type = 'video' if frames_dir else 'image'
-            decode_and_restore(qr_directory, frames_dir, source_type)
+    except KeyboardInterrupt:
+        logger.warning("Operation cancelled by user")
+        print("\n\nOperation cancelled by user")
+        sys.exit(1)
+    except Exception as e:
+        logger.exception(f"Unexpected error: {e}")
+        print(f"\nFatal error: {e}")
+        print("Check log file for details")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

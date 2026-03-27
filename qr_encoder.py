@@ -9,13 +9,35 @@ import sys
 import os
 import base64
 import argparse
+import logging
+from pathlib import Path
 
-from config import VERSION, COMPRESSION_METHODS, DEFAULTS
+from config import VERSION, COMPRESSION_METHODS, DEFAULTS, get_config_value
 from services.utils import setup_windows_encoding, safe_input, normalize_path, validate_file_exists, get_file_info
 from services.file_detector import FileDetector
 from services.text_processor import TextProcessor
 from services.qr_generator import QRGenerator
 from services.compression import CompressionManager
+
+
+def setup_logging(log_level: str = None, log_file: str = None):
+    """Configure logging for the application"""
+    if log_level is None:
+        log_level = get_config_value('logging_level', 'INFO')
+    if log_file is None:
+        log_file = get_config_value('logging_file', 'qr_encoder.log')
+    
+    numeric_level = getattr(logging, log_level.upper(), logging.INFO)
+    
+    logging.basicConfig(
+        level=numeric_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file, encoding='utf-8'),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+    return logging.getLogger(__name__)
 
 
 def parse_args():
@@ -233,73 +255,100 @@ def encode_file(params: dict):
 def main():
     """Main entry point"""
     setup_windows_encoding()
+    logger = setup_logging()
     
-    args = parse_args()
-    
-    print(f"\n╔══════════════════════════════╗")
-    print(f"║   QR CODE FILE ENCODER v{VERSION}   ║")
-    print("║   Support for any files       ║")
-    print("╚══════════════════════════════╝\n")
-    
-    # CLI mode
-    if args.file:
-        input_file = normalize_path(args.file)
-        error = validate_file_exists(input_file)
-        if error:
-            print(f"Error: {error}")
-            return
+    try:
+        args = parse_args()
         
-        file_info = get_file_info(input_file)
+        logger.info(f"QR Code File Encoder v{VERSION} started")
         
-        print(f"File: {input_file}")
-        print(f"Size: {file_info['size']:,} bytes")
+        print(f"\n╔══════════════════════════════╗")
+        print(f"║   QR CODE FILE ENCODER v{VERSION}   ║")
+        print("║   Support for any files       ║")
+        print("╚══════════════════════════════╝\n")
         
-        # Detect file type
-        detector = FileDetector()
-        is_binary = args.mode == 'binary'
-        if args.mode is None:
-            is_binary = not detector.detect(input_file)
-        
-        # Read file
-        if is_binary:
-            with open(input_file, 'rb') as f:
-                file_data = f.read()
-            file_content = base64.b64encode(file_data).decode('ascii')
-        else:
-            with open(input_file, 'r', encoding='utf-8') as f:
-                file_content = f.read()
-        
-        # Compression
-        compression = CompressionManager()
-        original_size = len(file_content.encode('utf-8'))
-        compress_method = args.compress
-        
-        if is_binary or original_size > 10000:
-            file_bytes = file_content.encode('utf-8')
-            compressed_data, used_method = compression.compress_data(file_bytes, compress_method)
-            compressed_content = base64.b64encode(compressed_data).decode('ascii')
-            file_content = compressed_content
-            compress_method = used_method
-        
-        params = {
-            'file': input_file,
-            'file_name': file_info['name'],
-            'content': file_content,
-            'is_binary': is_binary,
-            'compress_method': compress_method,
-            'version': args.version,
-            'error_correction': args.error_correction,
-            'style': args.style,
-            'output_dir': args.output_dir or DEFAULTS['output_dir']
-        }
-        
-        encode_file(params)
-    
-    # Interactive mode
-    else:
-        params = interactive_mode()
-        if params:
+        # CLI mode
+        if args.file:
+            input_file = normalize_path(args.file)
+            error = validate_file_exists(input_file)
+            if error:
+                logger.error(f"Validation error: {error}")
+                print(f"Error: {error}")
+                return
+            
+            file_info = get_file_info(input_file)
+            
+            logger.info(f"Processing file: {input_file} ({file_info['size']:,} bytes)")
+            print(f"File: {input_file}")
+            print(f"Size: {file_info['size']:,} bytes")
+            
+            # Detect file type
+            detector = FileDetector()
+            is_binary = args.mode == 'binary'
+            if args.mode is None:
+                is_binary = not detector.detect(input_file)
+            
+            logger.debug(f"File type detected: {'binary' if is_binary else 'text'}")
+            
+            # Read file
+            try:
+                if is_binary:
+                    with open(input_file, 'rb') as f:
+                        file_data = f.read()
+                    file_content = base64.b64encode(file_data).decode('ascii')
+                else:
+                    with open(input_file, 'r', encoding='utf-8') as f:
+                        file_content = f.read()
+            except IOError as e:
+                logger.error(f"Failed to read file: {e}")
+                print(f"Error reading file: {e}")
+                return
+            
+            # Compression
+            compression = CompressionManager()
+            original_size = len(file_content.encode('utf-8'))
+            compress_method = args.compress
+            
+            if is_binary or original_size > 10000:
+                file_bytes = file_content.encode('utf-8')
+                compressed_data, used_method = compression.compress_data(file_bytes, compress_method)
+                compressed_content = base64.b64encode(compressed_data).decode('ascii')
+                file_content = compressed_content
+                compress_method = used_method
+                logger.info(f"Compression applied: {compress_method}")
+            
+            params = {
+                'file': input_file,
+                'file_name': file_info['name'],
+                'content': file_content,
+                'is_binary': is_binary,
+                'compress_method': compress_method,
+                'version': args.version,
+                'error_correction': args.error_correction,
+                'style': args.style,
+                'output_dir': args.output_dir or DEFAULTS['output_dir']
+            }
+            
             encode_file(params)
+            logger.info("Encoding completed successfully")
+        
+        # Interactive mode
+        else:
+            logger.info("Starting interactive mode")
+            params = interactive_mode()
+            if params:
+                encode_file(params)
+                logger.info("Encoding completed successfully")
+    
+    except KeyboardInterrupt:
+        logger.warning("Operation cancelled by user")
+        print("\n\nOperation cancelled by user")
+        sys.exit(1)
+    except Exception as e:
+        logger.exception(f"Unexpected error: {e}")
+        print(f"\nFatal error: {e}")
+        print("Check log file for details")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

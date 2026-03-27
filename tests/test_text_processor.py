@@ -125,10 +125,11 @@ class TestTextProcessorBlockSplitting:
     
     def test_long_text_splits(self):
         """Long text is split into multiple blocks"""
+        from config import MAX_QR_BLOCK_CHARS
         processor = TextProcessor()
         
-        # Create text longer than max_qr_chars
-        long_text = "a" * 500
+        # Create text longer than max_qr_chars (now 2000)
+        long_text = "a" * (MAX_QR_BLOCK_CHARS + 500)
         blocks = processor.process_text(long_text)
         
         # Should be split into multiple blocks
